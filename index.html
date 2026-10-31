@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live 現場即時互動</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 引入 Google Fonts 典雅粗體字體 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&family=Plus+Jakarta+Sans:wght@800&display=swap" rel="stylesheet">
+
+  <style>
+    @keyframes pulseLive {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.96); opacity: 0.75; }
+    }
+    .badge-live {
+      animation: pulseLive 2s infinite ease-in-out;
+    }
+    .fade-mode-enter {
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<!-- 全域背景採用溫潤淡米色 #fbf9f5，極致柔和不刺眼 -->
+<body class="bg-[#fbf9f5] text-stone-800 antialiased min-h-screen selection:bg-amber-600 selection:text-white">
+
+  <!-- 頂部導航列：淡米色微透明毛玻璃 -->
+  <header class="bg-[#fdfcf9]/90 backdrop-blur-md border-b border-[#ece5d8] sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md shadow-indigo-200">
+          Q
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-stone-900" id="header-title">演講即時問答</h1>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+              Live
+            </span>
+          </div>
+          <p class="text-xs text-stone-400" id="header-desc">現場連線互動中</p>
+        </div>
+      </div>
+
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span>系統連線中</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容容器 -->
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- =======================================================
+         【視圖一：QA 問答模式】
+         ======================================================= -->
+    <div id="view-qa" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start fade-mode-enter">
+      
+      <!-- 左側 2/3：核心問答看板 -->
+      <section class="lg:col-span-8 space-y-8">
+
+        <!-- 1. 當前焦點：最早提出但尚未回答的問題 -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 badge-live"></span>
+              <h2 class="text-xs font-black tracking-widest text-stone-500 uppercase">
+                當前焦點 • 正在解答
+              </h2>
+            </div>
+            <span id="pending-queue-badge" class="text-xs font-medium text-stone-400">尚無待解題目</span>
+          </div>
+
+          <div id="active-question-card" class="bg-gradient-to-br from-stone-900 via-stone-800 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl shadow-stone-900/10 border border-stone-800 transition-all">
+            <div class="text-center py-8 text-stone-400 text-sm">目前沒有等待中的問題，歡迎在右側提出問題！</div>
+          </div>
+        </div>
+
+        <!-- 2. 最新回答精華：置於焦點正下方 -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <h2 class="text-xs font-black tracking-widest text-stone-500 uppercase">
+                最新解答 • 剛回覆
+              </h2>
+            </div>
+            <span class="text-xs font-medium text-emerald-600 font-semibold">講者最新觀點</span>
+          </div>
+
+          <div id="latest-answered-card" class="bg-[#fefdfa] rounded-3xl p-6 sm:p-8 shadow-xl shadow-amber-900/5 border border-[#ece5d8] transition-all">
+            <div class="text-center py-8 text-stone-400 text-sm">講者尚未解答任何問題，回答後將在此處重點呈現 💡</div>
+          </div>
+        </div>
+
+        <!-- 3. 歷史已解答問題區 -->
+        <div class="space-y-4 pt-2">
+          <div class="flex items-center justify-between pb-3 border-b border-[#ece5d8]">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-stone-400"></span>
+              <h2 class="text-sm font-bold text-stone-700">先前解答紀錄</h2>
+              <span id="answered-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#f3eee4] text-stone-600 border border-[#e5ded0]">
+                0
+              </span>
+            </div>
+            <span class="text-xs text-stone-400">歷史紀錄 • 雙欄排列</span>
+          </div>
+
+          <div id="answered-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="col-span-full p-8 text-center rounded-2xl border border-dashed border-[#e2d9c8] bg-[#fdfbf7] text-xs text-stone-400">
+              尚無更多歷史回覆紀錄。
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- 右側 1/3：發問表單 -->
+      <aside class="lg:col-span-4 lg:sticky lg:top-24">
+        <div class="bg-[#fefdfa] rounded-3xl border border-[#ece5d8] shadow-lg shadow-stone-200/50 p-6 sm:p-7 space-y-5">
+          <div>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/60 mb-2">
+              <span>✍️</span> 觀眾提問
+            </span>
+            <h3 class="text-xl font-bold text-stone-900">發表您的想法</h3>
+            <p class="text-xs text-stone-400 mt-1">送出後將依照提問順序排入佇列由講者解答。</p>
+          </div>
+
+          <form id="qa-form" class="space-y-4">
+            <div>
+              <label for="nickname" class="block text-xs font-semibold text-stone-700 mb-1.5">
+                如何稱呼您 <span class="text-stone-400 font-normal">（選填）</span>
+              </label>
+              <input 
+                type="text" 
+                id="nickname" 
+                placeholder="例如：Alex 或 匿名夥伴" 
+                class="w-full px-4 py-2.5 rounded-xl border border-[#e2d9c8] text-sm placeholder-stone-400 bg-[#f9f6ee] focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors"
+              >
+            </div>
+
+            <div>
+              <label for="content" class="block text-xs font-semibold text-stone-700 mb-1.5">
+                您的問題或回饋 <span class="text-rose-500">*</span>
+              </label>
+              <textarea 
+                id="content" 
+                rows="4" 
+                placeholder="請輸入想向講者提出的內容..." 
+                class="w-full px-4 py-3 rounded-xl border border-[#e2d9c8] text-sm placeholder-stone-400 bg-[#f9f6ee] focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors resize-none leading-relaxed"
+                required
+              ></textarea>
+            </div>
+
+            <button 
+              type="submit" 
+              id="submit-btn"
+              class="w-full py-3.5 px-4 bg-stone-900 hover:bg-stone-800 active:scale-[0.99] text-white font-bold text-sm rounded-xl shadow-md shadow-stone-900/10 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>送出問題</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </aside>
+    </div>
+
+    <!-- =======================================================
+         【視圖二：淡米色底 • 徑向自動膨脹防重疊文字雲】
+         ======================================================= -->
+    <div id="view-cloud" class="hidden grid-cols-1 lg:grid-cols-12 gap-8 items-start fade-mode-enter">
+      
+      <!-- 左側 2/3：淡米色護眼 Canvas 畫布 -->
+      <section class="lg:col-span-8 space-y-4">
+        <div class="flex items-center justify-between pb-2 border-b border-[#ece5d8]">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse"></span>
+            <h2 class="text-sm font-bold text-stone-800">現場文字雲</h2>
+            <span id="cloud-total-badge" class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#f3eee4] text-stone-700 border border-[#e5ded0]">
+              共 0 個單詞
+            </span>
+          </div>
+          <span class="text-xs text-stone-400">膨脹自動向外推移 • 維持相對方位不重疊</span>
+        </div>
+
+        <!-- 畫布容器採用溫潤淡米色 #f5f0e6，與白框形成自然層次 -->
+        <div class="relative bg-[#f5f0e6] rounded-3xl border border-[#e5decb] shadow-xl shadow-amber-900/5 p-4 sm:p-6 flex items-center justify-center overflow-hidden min-h-[520px]">
+          <div id="cloud-empty-hint" class="absolute inset-0 flex flex-col items-center justify-center text-stone-400 space-y-2 pointer-events-none">
+            <span class="text-4xl">🌾</span>
+            <span class="text-sm font-medium">全場關鍵詞尚未匯入，請在右側發送第一個詞彙！</span>
+          </div>
+
+          <canvas id="word-cloud-canvas" class="w-full h-full max-w-full block"></canvas>
+        </div>
+      </section>
+
+      <!-- 右側 1/3：發送關鍵字 -->
+      <aside class="lg:col-span-4 lg:sticky lg:top-24">
+        <div class="bg-[#fefdfa] rounded-3xl border border-[#ece5d8] shadow-lg shadow-stone-200/50 p-6 sm:p-7 space-y-5">
+          <div>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/60 mb-2">
+              <span>☁️</span> 現場文字雲
+            </span>
+            <h3 class="text-xl font-bold text-stone-900">輸入你的關鍵詞</h3>
+            <p class="text-xs text-stone-400 mt-1">發送簡短單詞，字體膨脹時周圍詞彙將自動推開保證清晰！</p>
+          </div>
+
+          <form id="cloud-form" class="space-y-4">
+            <div>
+              <label for="word-input" class="block text-xs font-semibold text-stone-700 mb-1.5">
+                關鍵字詞彙 <span class="text-rose-500">*</span>
+              </label>
+              <input 
+                type="text" 
+                id="word-input" 
+                maxlength="15"
+                placeholder="例如：創新、AI工具、敏捷、好用" 
+                class="w-full px-4 py-3 rounded-xl border border-[#e2d9c8] text-sm placeholder-stone-400 bg-[#f9f6ee] focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors"
+                required
+              >
+            </div>
+
+            <button 
+              type="submit" 
+              id="cloud-submit-btn"
+              class="w-full py-3.5 px-4 bg-stone-900 hover:bg-stone-800 active:scale-[0.99] text-white font-bold text-sm rounded-xl shadow-md shadow-stone-900/10 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>送出詞彙</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </aside>
+
+    </div>
+
+  </main>
+
+  <script>
+    const SUPABASE_URL = 'https://azygjldnumtuhltqnxip.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6eWdqbGRudW10dWhsdHFueGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyODU3MzEsImV4cCI6MjEwODg2MTczMX0.IrHBo2Tfm6S8aBpfjROOiZyY8D3YeF_BCKYM1oJMEO8';
+
+    const clientSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const viewQA = document.getElementById('view-qa');
+    const viewCloud = document.getElementById('view-cloud');
+    const headerTitle = document.getElementById('header-title');
+    const headerDesc = document.getElementById('header-desc');
+
+    const activeCard = document.getElementById('active-question-card');
+    const latestAnsweredCard = document.getElementById('latest-answered-card');
+    const pendingQueueBadge = document.getElementById('pending-queue-badge');
+    const answeredGrid = document.getElementById('answered-grid');
+    const answeredBadge = document.getElementById('answered-count-badge');
+    
+    const cloudCanvas = document.getElementById('word-cloud-canvas');
+    const cloudEmptyHint = document.getElementById('cloud-empty-hint');
+    const cloudTotalBadge = document.getElementById('cloud-total-badge');
+
+    const qaForm = document.getElementById('qa-form');
+    const nicknameInput = document.getElementById('nickname');
+    const contentInput = document.getElementById('content');
+    const submitBtn = document.getElementById('submit-btn');
+
+    const cloudForm = document.getElementById('cloud-form');
+    const wordInput = document.getElementById('word-input');
+    const cloudSubmitBtn = document.getElementById('cloud-submit-btn');
+
+    let allQuestions = [];
+    let allWords = [];
+    let currentMode = 'qa';
+
+    // 溫和但高辨識度的繽紛色票（與淡米色背景完美契合）
+    const VIBRANT_PALETTE = [
+      '#dc2626', '#d97706', '#059669', '#2563eb', 
+      '#7c3aed', '#db2777', '#0891b2', '#ea580c', 
+      '#4338ca', '#15803d', '#be185d', '#b45309'
+    ];
+
+    function getLockedColor(text) {
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) {
+        hash = text.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      return VIBRANT_PALETTE[Math.abs(hash) % VIBRANT_PALETTE.length];
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function switchClientView(mode) {
+      currentMode = mode;
+      if (mode === 'cloud') {
+        viewQA.classList.add('hidden');
+        viewCloud.classList.remove('hidden');
+        viewCloud.classList.add('grid');
+        headerTitle.innerText = '演講即時文字雲';
+        headerDesc.innerText = '全場關鍵詞即時匯整';
+        renderAdvancedWordCloud();
+      } else {
+        viewCloud.classList.add('hidden');
+        viewCloud.classList.remove('grid');
+        viewQA.classList.remove('hidden');
+        headerTitle.innerText = '演講即時問答';
+        headerDesc.innerText = '現場提問 • 即時互動解答';
+        updateQAUI();
+      }
+    }
+
+    // QA 模式渲染
+    function updateQAUI() {
+      const unanswered = allQuestions
+        .filter(q => !q.reply)
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      const activeQ = unanswered.length > 0 ? unanswered[0] : null;
+      pendingQueueBadge.innerText = unanswered.length > 0 ? `等候解答中 (${unanswered.length})` : `尚無待解題目`;
+
+      if (!activeQ) {
+        activeCard.innerHTML = `<div class="text-center py-8 text-stone-400 text-sm">目前沒有等待中的問題，歡迎在右側提出問題！</div>`;
+      } else {
+        activeCard.innerHTML = `
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  ● 正在回答
+                </span>
+                <span class="text-xs font-semibold text-amber-200">${escapeHtml(activeQ.nickname || '匿名觀眾')}</span>
+              </div>
+              <time class="text-xs text-stone-400">${new Date(activeQ.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+            </div>
+            <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white leading-snug">
+              ${escapeHtml(activeQ.content)}
+            </h3>
+            <div class="pt-2 text-xs text-amber-200/80 italic flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+              <span>講者正在解答此題，解答後將自動推播至下方...</span>
+            </div>
+          </div>
+        `;
+      }
+
+      const answeredList = allQuestions
+        .filter(q => !!q.reply)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const latestAnswered = answeredList.length > 0 ? answeredList[0] : null;
+      const olderAnsweredList = answeredList.slice(1);
+
+      if (!latestAnswered) {
+        latestAnsweredCard.innerHTML = `
+          <div class="text-center py-8 text-stone-400 text-sm">
+            講者尚未解答任何問題，回答後將在此處重點呈現 💡
+          </div>
+        `;
+      } else {
+        latestAnsweredCard.innerHTML = `
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ✓ 最新解答
+                </span>
+                <span class="text-xs font-semibold text-stone-600">${escapeHtml(latestAnswered.nickname || '匿名觀眾')} 的提問</span>
+              </div>
+              <time class="text-xs text-stone-400">${new Date(latestAnswered.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+            </div>
+
+            <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 leading-snug">
+              ${escapeHtml(latestAnswered.content)}
+            </h3>
+
+            <div class="mt-4 p-5 rounded-2xl bg-gradient-to-br from-[#f8f5ee] via-[#fefdfa] to-[#eef7ee] border border-[#e4dcce] space-y-2">
+              <div class="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
+                <span>🎙️ 講者解答</span>
+              </div>
+              <p class="text-stone-800 font-medium text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
+                ${escapeHtml(latestAnswered.reply)}
+              </p>
+            </div>
+          </div>
+        `;
+      }
+
+      answeredBadge.innerText = olderAnsweredList.length;
+      answeredGrid.innerHTML = '';
+
+      if (olderAnsweredList.length === 0) {
+        answeredGrid.innerHTML = `
+          <div class="col-span-full p-8 text-center rounded-2xl border border-dashed border-[#e2d9c8] bg-[#fdfbf7] text-xs text-stone-400">
+            尚無更多歷史回覆紀錄。
+          </div>
+        `;
+        return;
+      }
+
+      olderAnsweredList.forEach(q => {
+        const item = document.createElement('article');
+        item.className = 'bg-[#fefdfa] rounded-2xl p-5 border border-[#ece5d8] shadow-xs flex flex-col justify-between space-y-3';
+        item.innerHTML = `
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs text-stone-400">
+              <span class="font-semibold text-stone-700">${escapeHtml(q.nickname || '匿名')}</span>
+              <time>${new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+            </div>
+            <h4 class="text-sm font-bold text-stone-900 leading-snug line-clamp-3">${escapeHtml(q.content)}</h4>
+          </div>
+          <div class="p-3.5 rounded-xl bg-[#f9f6ee] border border-[#e8dfcf] text-xs text-stone-700 space-y-1">
+            <div class="font-bold text-indigo-700">💬 講者回覆</div>
+            <p class="leading-relaxed whitespace-pre-wrap">${escapeHtml(q.reply)}</p>
+          </div>
+        `;
+        answeredGrid.appendChild(item);
+      });
+    }
+
+    // =========================================================================
+    // 文字雲錨點字典：記錄每個詞的方位角 (theta) 與基準距離 (baseDist)
+    // 當有詞變大時，順著方位角徑向外推，杜絕疊字並鎖定相對方位！
+    // =========================================================================
+    let wordAnchorStore = {}; 
+
+    function renderAdvancedWordCloud() {
+      cloudTotalBadge.innerText = `共 ${allWords.length} 個單詞`;
+
+      const ctx = cloudCanvas.getContext('2d');
+      const container = cloudCanvas.parentElement;
+      const width = container.clientWidth - 32;
+      const height = Math.max(520, Math.min(window.innerHeight * 0.65, 640));
+
+      cloudCanvas.width = width;
+      cloudCanvas.height = height;
+      ctx.clearRect(0, 0, width, height);
+
+      if (allWords.length === 0) {
+        wordAnchorStore = {};
+        cloudEmptyHint.classList.remove('hidden');
+        return;
+      }
+      cloudEmptyHint.classList.add('hidden');
+
+      // 1. 統計詞頻
+      const freqMap = {};
+      allWords.forEach(item => {
+        const w = (item.word || '').trim();
+        if (w) freqMap[w] = (freqMap[w] || 0) + 1;
+      });
+
+      const uniqueWords = Object.keys(freqMap);
+      const uniqueCount = uniqueWords.length;
+      let maxFreq = 1, minFreq = 1;
+      uniqueWords.forEach(w => {
+        if (freqMap[w] > maxFreq) maxFreq = freqMap[w];
+        if (freqMap[w] < minFreq) minFreq = freqMap[w];
+      });
+
+      // 2. 自適應動態基準字級
+      let baseSize;
+      if (uniqueCount <= 1) baseSize = 64;
+      else if (uniqueCount <= 5) baseSize = 46;
+      else if (uniqueCount <= 15) baseSize = 32;
+      else if (uniqueCount <= 30) baseSize = 24;
+      else baseSize = Math.max(16, 22 - Math.floor(uniqueCount / 12));
+
+      const PADDING = 10; // 保證 10px 以上的安全間距
+      const centerX = width / 2;
+      const centerY = height / 2;
+
+      // 3. 計算各詞彙的當前字體大小與盒體物理尺寸
+      const wordNodes = uniqueWords.map(word => {
+        const count = freqMap[word];
+        const ratio = maxFreq === minFreq ? 0 : (count - minFreq) / (maxFreq - minFreq);
+        const fontSize = Math.round(baseSize * (1 + ratio * 1.35));
+
+        ctx.font = `900 ${fontSize}px 'Plus Jakarta Sans', 'Noto Serif TC', serif`;
+        const textWidth = ctx.measureText(word).width;
+        const textHeight = fontSize * 1.05;
+        const badgeWidth = count > 1 ? (count >= 10 ? 28 : 22) : 0;
+        const totalW = textWidth + badgeWidth + 10;
+        const totalH = textHeight + 10;
+
+        // 若尚未設定錨點，進行初次方位角分配
+        if (!wordAnchorStore[word]) {
+          let hash = 0;
+          for (let i = 0; i < word.length; i++) hash += word.charCodeAt(i);
+          
+          // 角度均勻螺旋散開
+          const order = Object.keys(wordAnchorStore).length;
+          const theta = (order * 2.39996) + (hash % 10) * 0.1; // 黃金角遞增散佈
+          const initialDist = order === 0 ? 0 : Math.sqrt(order) * 75;
+          const tiltDeg = ((hash % 11) - 5); // 嚴格鎖定在 ±5 度以內
+          const tiltAngle = (tiltDeg * Math.PI) / 180;
+
+          wordAnchorStore[word] = {
+            theta: theta,
+            dist: initialDist,
+            tilt: tiltAngle
+          };
+        }
+
+        const anchor = wordAnchorStore[word];
+
+        return {
+          word,
+          count,
+          fontSize,
+          textWidth,
+          textHeight,
+          badgeWidth,
+          w: totalW,
+          h: totalH,
+          theta: anchor.theta,
+          dist: anchor.dist,
+          tilt: anchor.tilt,
+          // 橢圓長寬比修正
+          x: centerX + Math.cos(anchor.theta) * anchor.dist * 1.15,
+          y: centerY + Math.sin(anchor.theta) * anchor.dist * 0.85,
+          color: getLockedColor(word)
+        };
+      });
+
+      // 4. 關鍵演算法：多輪徑向膨脹推擠（Radial Outward Relaxation）
+      // 當中心字體變大時，順著與中心的連線向外推開鄰近節點，絕不互相覆蓋！
+      for (let iter = 0; iter < 18; iter++) {
+        for (let i = 0; i < wordNodes.length; i++) {
+          for (let j = i + 1; j < wordNodes.length; j++) {
+            const a = wordNodes[i];
+            const b = wordNodes[j];
+
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const minXDist = (a.w + b.w) / 2 + PADDING;
+            const minYDist = (a.h + b.h) / 2 + PADDING;
+
+            // 發生包圍盒碰撞
+            if (Math.abs(dx) < minXDist && Math.abs(dy) < minYDist) {
+              const overlapX = minXDist - Math.abs(dx);
+              const overlapY = minYDist - Math.abs(dy);
+
+              // 往重疊較少的軸向推開，並給予向外膨脹的加速度
+              let pushX = (dx === 0 ? 1 : Math.sign(dx)) * overlapX * 0.55;
+              let pushY = (dy === 0 ? 1 : Math.sign(dy)) * overlapY * 0.55;
+
+              // 離中心較遠者承受更大的向外推擠力（徑向向外推）
+              const distA = Math.hypot(a.x - centerX, a.y - centerY);
+              const distB = Math.hypot(b.x - centerX, b.y - centerY);
+
+              if (distA <= distB) {
+                b.x += pushX * 1.2;
+                b.y += pushY * 1.2;
+                a.x -= pushX * 0.3;
+                a.y -= pushY * 0.3;
+              } else {
+                a.x -= pushX * 1.2;
+                a.y -= pushY * 1.2;
+                b.x += pushX * 0.3;
+                b.y += pushY * 0.3;
+              }
+            }
+          }
+        }
+
+        // 畫布邊界限制（防止推擠過度跑出 Canvas）
+        wordNodes.forEach(node => {
+          node.x = Math.max(node.w / 2 + 16, Math.min(width - node.w / 2 - 16, node.x));
+          node.y = Math.max(node.h / 2 + 16, Math.min(height - node.h / 2 - 16, node.y));
+          
+          // 更新錨點的記憶距離
+          const curDist = Math.hypot(node.x - centerX, node.y - centerY);
+          wordAnchorStore[node.word].dist = curDist;
+        });
+      }
+
+      // 5. 繪製所有完全分離且無重疊的文字雲節點
+      wordNodes.forEach(node => {
+        ctx.save();
+        ctx.translate(node.x, node.y);
+        ctx.rotate(node.tilt); // 精確維持在 ±5°
+
+        ctx.fillStyle = node.color;
+        ctx.font = `900 ${node.fontSize}px 'Plus Jakarta Sans', 'Noto Serif TC', serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        const startX = -node.w / 2 + 4;
+        ctx.fillText(node.word, startX, 0);
+
+        // 右上角次數膠囊角標
+        if (node.count > 1) {
+          const badgeX = startX + node.textWidth + 4;
+          const badgeY = -node.textHeight / 2 + 4;
+          const bw = node.badgeWidth;
+          const bh = 15;
+
+          ctx.fillStyle = node.color;
+          ctx.beginPath();
+          ctx.roundRect(badgeX, badgeY - bh / 2, bw, bh, 5);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold 10px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`×${node.count}`, badgeX + bw / 2, badgeY);
+        }
+
+        ctx.restore();
+      });
+    }
+
+    // 視窗縮放時自適應依比例重繪
+    window.addEventListener('resize', () => {
+      if (currentMode === 'cloud' && allWords.length > 0) {
+        renderAdvancedWordCloud();
+      }
+    });
+
+    async function init() {
+      try {
+        const { data: qData } = await clientSupabase.from('questions').select('*').order('created_at', { ascending: false });
+        allQuestions = qData || [];
+        updateQAUI();
+
+        const { data: wData } = await clientSupabase.from('words').select('*');
+        allWords = wData || [];
+
+        const { data: stateData } = await clientSupabase.from('app_state').select('current_mode').eq('id', 1).maybeSingle();
+        if (stateData) switchClientView(stateData.current_mode);
+      } catch (e) {
+        console.error('初始化失敗:', e);
+      }
+    }
+
+    qaForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const content = contentInput.value.trim();
+      const nickname = nicknameInput.value.trim() || '匿名';
+      if (!content) return;
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = '傳送中...';
+
+      const { error } = await clientSupabase.from('questions').insert([{ nickname, content }]);
+      if (error) {
+        alert('發送失敗：' + error.message);
+      } else {
+        contentInput.value = '';
+        submitBtn.innerText = '✓ 送出成功！';
+        setTimeout(() => {
+          submitBtn.innerText = '送出問題';
+          submitBtn.disabled = false;
+        }, 1000);
+      }
+    });
+
+    cloudForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const word = wordInput.value.trim();
+      if (!word) return;
+
+      cloudSubmitBtn.disabled = true;
+      cloudSubmitBtn.innerText = '送出中...';
+
+      const { error } = await clientSupabase.from('words').insert([{ word }]);
+      if (error) {
+        alert('發送失敗：' + error.message);
+      } else {
+        wordInput.value = '';
+        cloudSubmitBtn.innerText = '✓ 已加入！';
+        setTimeout(() => {
+          cloudSubmitBtn.innerText = '送出詞彙';
+          cloudSubmitBtn.disabled = false;
+        }, 800);
+      }
+    });
+
+    function setupRealtime() {
+      clientSupabase
+        .channel('client-mode-sync')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_state' }, (payload) => {
+          switchClientView(payload.new.current_mode);
+        })
+        .subscribe();
+
+      clientSupabase
+        .channel('client-questions-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            allQuestions.unshift(payload.new);
+          } else if (payload.eventType === 'UPDATE') {
+            const idx = allQuestions.findIndex(q => q.id === payload.new.id);
+            if (idx !== -1) allQuestions[idx] = payload.new;
+          } else if (payload.eventType === 'DELETE') {
+            allQuestions = allQuestions.filter(q => q.id !== payload.old.id);
+          }
+          updateQAUI();
+        })
+        .subscribe();
+
+      clientSupabase
+        .channel('client-words-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'words' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            allWords.push(payload.new);
+          } else if (payload.eventType === 'DELETE') {
+            allWords = [];
+            wordAnchorStore = {}; // 清空時重置推擠錨點
+          }
+          if (currentMode === 'cloud') {
+            renderAdvancedWordCloud();
+          }
+        })
+        .subscribe();
+    }
+
+    init();
+    setupRealtime();
+  </script>
+</body>
+</html>
