@@ -65,15 +65,10 @@
 
     <!-- =======================================================
          【視圖一：QA 問答模式】
-         手機端佈局重構：
-         1. 當前焦點 (正在解答)
-         2. 最新解答 (剛回覆)
-         3. 觀眾提問表單 (避免被大量歷史洗版推到最底)
-         4. 歷史已解答問題 (堆疊於下方)
          ======================================================= -->
     <div id="view-qa" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start fade-mode-enter">
       
-      <!-- 主要區塊 (手機單欄全寬，電腦佔 2/3) -->
+      <!-- 主要區塊 (手機單欄，電腦佔 2/3) -->
       <section class="lg:col-span-8 space-y-8">
 
         <!-- 1. 當前焦點：最早提出但尚未回答的問題 -->
@@ -93,7 +88,7 @@
           </div>
         </div>
 
-        <!-- 2. 最新解答精華：置於當前焦點正下方 -->
+        <!-- 2. 最新解答精華：講者解答字體放大突顯（比題目更大） -->
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -110,7 +105,7 @@
           </div>
         </div>
 
-        <!-- 3. 【手機專用提問表單】：緊接在「最新解答」之下、「歷史問答」之上 -->
+        <!-- 3. 【手機專用提問表單】：最新解答之下，歷史紀錄之上 -->
         <div class="block lg:hidden">
           <div class="bg-[#fefdfa] rounded-3xl border border-[#ece5d8] shadow-lg shadow-stone-200/50 p-6 space-y-4">
             <div>
@@ -161,11 +156,11 @@
           </div>
         </div>
 
-        <!-- 4. 歷史已解答問題區：移至提問表單下方，避免推擠表單 -->
+        <!-- 4. 歷史已解答問題區：講者回覆字體大於/等於題目 -->
         <div class="space-y-4 pt-2">
           <div class="flex items-center justify-between pb-3 border-b border-[#ece5d8]">
             <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-stone-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-stone-400"></span>
               <h2 class="text-sm font-bold text-stone-700">先前解答紀錄</h2>
               <span id="answered-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#f3eee4] text-stone-600 border border-[#e5ded0]">
                 0
@@ -183,7 +178,7 @@
 
       </section>
 
-      <!-- 電腦端專用側邊欄 (桌機顯示佔 1/3，手機端自動隱藏 hidden lg:block) -->
+      <!-- 電腦端專用側邊欄 -->
       <aside class="hidden lg:block lg:col-span-4 lg:sticky lg:top-24">
         <div class="bg-[#fefdfa] rounded-3xl border border-[#ece5d8] shadow-lg shadow-stone-200/50 p-6 sm:p-7 space-y-5">
           <div>
@@ -240,7 +235,6 @@
          ======================================================= -->
     <div id="view-cloud" class="hidden grid-cols-1 lg:grid-cols-12 gap-8 items-start fade-mode-enter">
       
-      <!-- 左側 2/3：淡米色 Canvas 畫布 -->
       <section class="lg:col-span-8 space-y-4">
         <div class="flex items-center justify-between pb-2 border-b border-[#ece5d8]">
           <div class="flex items-center gap-2">
@@ -263,7 +257,6 @@
         </div>
       </section>
 
-      <!-- 右側 1/3：發送關鍵字 -->
       <aside class="lg:col-span-4 lg:sticky lg:top-24">
         <div class="bg-[#fefdfa] rounded-3xl border border-[#ece5d8] shadow-lg shadow-stone-200/50 p-6 sm:p-7 space-y-5">
           <div>
@@ -328,7 +321,6 @@
     const cloudEmptyHint = document.getElementById('cloud-empty-hint');
     const cloudTotalBadge = document.getElementById('cloud-total-badge');
 
-    // 支援手機與桌機雙表單 DOM
     const qaFormDesktop = document.getElementById('qa-form-desktop');
     const nicknameInputDesktop = document.getElementById('nickname-desktop');
     const contentInputDesktop = document.getElementById('content-desktop');
@@ -385,7 +377,11 @@
       }
     }
 
+    // ==========================================
+    // QA 模式渲染：字體層次重新調整
+    // ==========================================
     function updateQAUI() {
+      // 1. 待解答隊列：先進先出鎖定當前焦點
       const unanswered = allQuestions
         .filter(q => !q.reply)
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -418,6 +414,7 @@
         `;
       }
 
+      // 2. 已解答排序：最新剛解答的一題優先
       const answeredList = allQuestions
         .filter(q => !!q.reply)
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -425,6 +422,9 @@
       const latestAnswered = answeredList.length > 0 ? answeredList[0] : null;
       const olderAnsweredList = answeredList.slice(1);
 
+      // -------------------------------------------------------------
+      // 調整重點 1：最新解答的講者解答字體 (text-2xl/3xl) 明顯大於題目 (text-base/lg)
+      // -------------------------------------------------------------
       if (!latestAnswered) {
         latestAnsweredCard.innerHTML = `
           <div class="text-center py-8 text-stone-400 text-sm">
@@ -433,10 +433,10 @@
         `;
       } else {
         latestAnsweredCard.innerHTML = `
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
+          <div class="space-y-5">
+            <div class="flex items-center justify-between border-b border-[#f0ebd9] pb-3">
               <div class="flex items-center gap-2.5">
-                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
                   ✓ 最新解答
                 </span>
                 <span class="text-xs font-semibold text-stone-600">${escapeHtml(latestAnswered.nickname || '匿名觀眾')} 的提問</span>
@@ -444,15 +444,20 @@
               <time class="text-xs text-stone-400">${new Date(latestAnswered.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
             </div>
 
-            <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 leading-snug">
-              ${escapeHtml(latestAnswered.content)}
-            </h3>
+            <!-- 原提問縮為次要輔助字體 -->
+            <div class="space-y-1">
+              <div class="text-[11px] font-bold text-stone-400 tracking-wider uppercase">問題內容</div>
+              <p class="text-base sm:text-lg font-bold text-stone-700 leading-snug">
+                ${escapeHtml(latestAnswered.content)}
+              </p>
+            </div>
 
-            <div class="mt-4 p-5 rounded-2xl bg-gradient-to-br from-[#f8f5ee] via-[#fefdfa] to-[#eef7ee] border border-[#e4dcce] space-y-2">
-              <div class="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
-                <span>🎙️ 講者解答</span>
+            <!-- 講者解答作為主角：超大顯眼字級 (text-2xl 至 text-3xl) -->
+            <div class="p-6 sm:p-7 rounded-2xl bg-gradient-to-br from-[#f8f5ee] via-[#ffffff] to-[#eff7ee] border-2 border-emerald-500/20 shadow-md shadow-emerald-950/5 space-y-2.5">
+              <div class="flex items-center gap-2 font-black text-emerald-800 text-sm sm:text-base tracking-wide">
+                <span>🎙️ 講者核心解答</span>
               </div>
-              <p class="text-stone-800 font-medium text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
+              <p class="text-stone-900 font-black text-2xl sm:text-3xl leading-snug tracking-tight whitespace-pre-wrap">
                 ${escapeHtml(latestAnswered.reply)}
               </p>
             </div>
@@ -460,6 +465,9 @@
         `;
       }
 
+      // -------------------------------------------------------------
+      // 調整重點 2：歷史回答卡片中，講者回覆字體 (text-base/lg) 大於/等於題目 (text-sm)
+      // -------------------------------------------------------------
       answeredBadge.innerText = olderAnsweredList.length;
       answeredGrid.innerHTML = '';
 
@@ -474,18 +482,24 @@
 
       olderAnsweredList.forEach(q => {
         const item = document.createElement('article');
-        item.className = 'bg-[#fefdfa] rounded-2xl p-5 border border-[#ece5d8] shadow-xs flex flex-col justify-between space-y-3';
+        item.className = 'bg-[#fefdfa] rounded-2xl p-5 border border-[#ece5d8] shadow-xs flex flex-col justify-between space-y-3.5 hover:shadow-sm transition-all';
         item.innerHTML = `
           <div class="space-y-2">
             <div class="flex items-center justify-between text-xs text-stone-400">
-              <span class="font-semibold text-stone-700">${escapeHtml(q.nickname || '匿名')}</span>
+              <span class="font-semibold text-stone-600">${escapeHtml(q.nickname || '匿名')}</span>
               <time>${new Date(q.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
             </div>
-            <h4 class="text-sm font-bold text-stone-900 leading-snug line-clamp-3">${escapeHtml(q.content)}</h4>
+            <!-- 題目維持清晰副標字級 -->
+            <div class="text-xs text-stone-400 font-semibold">問：</div>
+            <h4 class="text-sm font-bold text-stone-700 leading-snug line-clamp-2">${escapeHtml(q.content)}</h4>
           </div>
-          <div class="p-3.5 rounded-xl bg-[#f9f6ee] border border-[#e8dfcf] text-xs text-stone-700 space-y-1">
-            <div class="font-bold text-indigo-700">💬 講者回覆</div>
-            <p class="leading-relaxed whitespace-pre-wrap">${escapeHtml(q.reply)}</p>
+
+          <!-- 講者回覆：放大至 text-base/lg，大於題目且黑度更強，極易辨識 -->
+          <div class="p-4 rounded-xl bg-[#f9f6ee] border border-[#e8dfcf] space-y-1.5 mt-auto">
+            <div class="font-black text-xs text-indigo-700 flex items-center gap-1">
+              <span>💬 講者回答</span>
+            </div>
+            <p class="text-base sm:text-lg font-bold text-stone-900 leading-relaxed whitespace-pre-wrap">${escapeHtml(q.reply)}</p>
           </div>
         `;
         answeredGrid.appendChild(item);
@@ -689,7 +703,6 @@
       }
     }
 
-    // 通用送出問題邏輯 (桌機與手機共用)
     async function handleQuestionSubmit(nickname, content, btnElement, inputElement) {
       if (!content) return;
 
@@ -709,7 +722,6 @@
       }
     }
 
-    // 桌機表單監聽
     if (qaFormDesktop) {
       qaFormDesktop.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -719,7 +731,6 @@
       });
     }
 
-    // 手機表單監聽
     if (qaFormMobile) {
       qaFormMobile.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -729,7 +740,6 @@
       });
     }
 
-    // 文字雲送出
     cloudForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const word = wordInput.value.trim();
